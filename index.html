@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deadline Calculator</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: #e0e0e0;
+      padding: 40px;
+      backdrop-filter: blur(8px);
+    }
+    input, button {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #444;
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1rem;
+    }
+    button {
+      cursor: pointer;
+      background: linear-gradient(45deg, #0ff, #90f);
+      color: #000;
+      font-weight: bold;
+      border: none;
+      transition: transform 0.2s ease;
+    }
+    button:hover {
+      transform: scale(1.05);
+    }
+    label {
+      margin-top: 15px;
+      display: block;
+      font-weight: bold;
+    }
+    h1, h2, h3 {
+      color: #0ff;
+      text-shadow: 0 0 5px #0ff;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    }
+    .history {
+      margin-top: 20px;
+    }
+    ul {
+      padding-left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Deadline Calculator</h1>
+    <label for="mandays">Total Man-days:</label>
+    <input type="number" id="mandays" />
+
+    <label for="resources">Resources:</label>
+    <input type="number" id="resources" />
+
+    <label for="start">Start Date:</label>
+    <input type="date" id="start" />
+
+    <button onclick="calculateDeadline()">Calculate Deadline</button>
+    <button onclick="changeResources()">Change Resources</button>
+    <button onclick="resetAll()">Reset Data</button>
+
+    <h2>Current Deadline: <span id="currentDeadline">-</span></h2>
+    <div class="history">
+      <h3>Resource History:</h3>
+      <ul id="historyList"></ul>
+    </div>
+  </div>
+
+  <script>
+    const DAYS_PER_MONTH = 22;
+    let remainingMandays = 0;
+    let history = [];
+    let currentStart = null;
+    let currentDeadline = null;
+
+    window.onload = () => {
+      const saved = localStorage.getItem('deadlineData');
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('start').value = today;
+      if (saved) {
+        const data = JSON.parse(saved);
+        remainingMandays = data.remainingMandays;
+        history = data.history.map(entry => ({
+          from: new Date(entry.from),
+          to: new Date(entry.to),
+          resources: entry.resources
+        }));
+        currentStart = new Date(data.currentStart);
+        currentDeadline = new Date(data.currentDeadline);
+        updateUI();
+      }
+    };
+
+    function saveData() {
+      const data = {
+        remainingMandays,
+        history,
+        currentStart,
+        currentDeadline
+      };
+      localStorage.setItem('deadlineData', JSON.stringify(data));
+    }
+
+    function resetAll() {
+      localStorage.removeItem('deadlineData');
+      remainingMandays = 0;
+      history = [];
+      currentStart = null;
+      currentDeadline = null;
+      document.getElementById('mandays').value = '';
+      document.getElementById('resources').value = '';
+      document.getElementById('start').value = new Date().toISOString().split('T')[0];
+      updateUI();
+    }
+
+    function calculateDeadline() {
+      const mandays = parseInt(document.getElementById('mandays').value);
+      const resources = parseInt(document.getElementById('resources').value);
+      const startDate = new Date(document.getElementById('start').value);
+
+      if (isNaN(mandays) || isNaN(resources) || !startDate) {
+        alert("Please enter valid inputs.");
+        return;
+      }
+
+      remainingMandays = mandays;
+      currentStart = new Date(startDate);
+
+      const personMonths = mandays / DAYS_PER_MONTH;
+      const effectiveMonths = personMonths / resources;
+      const workingDays = Math.ceil(effectiveMonths * DAYS_PER_MONTH);
+
+      currentDeadline = addWorkingDays(startDate, workingDays);
+
+      history = [];
+      history.push({ from: new Date(startDate), to: new Date(currentDeadline), resources });
+      saveData();
+      updateUI();
+    }
+
+    function changeResources() {
+      const resources = parseInt(prompt("Enter new number of resources:"));
+      const now = new Date();
+
+      if (resources > 0 && remainingMandays > 0 && currentDeadline) {
+        const workedMandays = countWorkingDays(currentStart, now) * history[history.length - 1].resources;
+        remainingMandays = Math.max(remainingMandays - workedMandays, 0);
+
+        const personMonths = remainingMandays / DAYS_PER_MONTH;
+        const effectiveMonths = personMonths / resources;
+        const workingDays = Math.ceil(effectiveMonths * DAYS_PER_MONTH);
+
+        currentStart = new Date(now);
+        currentDeadline = addWorkingDays(currentStart, workingDays);
+
+        history.push({ from: new Date(currentStart), to: new Date(currentDeadline), resources });
+        saveData();
+        updateUI();
+      } else {
+        alert("Invalid input or deadline already passed.");
+      }
+    }
+
+    function addWorkingDays(start, daysToAdd) {
+      const result = new Date(start);
+      while (daysToAdd > 0) {
+        result.setDate(result.getDate() + 1);
+        const day = result.getDay();
+        if (day !== 0 && day !== 6) {
+          daysToAdd--;
+        }
+      }
+      return result;
+    }
+
+    function countWorkingDays(start, end) {
+      let count = 0;
+      let current = new Date(start);
+      while (current <= end) {
+        const day = current.getDay();
+        if (day !== 0 && day !== 6) {
+          count++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      return count;
+    }
+
+    function updateUI() {
+      document.getElementById('currentDeadline').innerText = currentDeadline ? currentDeadline.toDateString() : '-';
+      const historyList = document.getElementById('historyList');
+      historyList.innerHTML = '';
+      history.forEach(entry => {
+        const li = document.createElement('li');
+        li.innerText = `From ${entry.from.toDateString()} to ${entry.to.toDateString()}: ${entry.resources} resources`;
+        historyList.appendChild(li);
+      });
+    }
+  </script>
+</body>
+</html>
