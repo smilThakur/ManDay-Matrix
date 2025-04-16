@@ -41,12 +41,6 @@ Here's a clean and informative `README.md` for your **Deadline Calculator** proj
 
 ---
 
-## 📸 Screenshot
-
-> *(Add screenshot here if you'd like)*
-
----
-
 ## ✅ TODO (Optional Enhancements)
 
 - 📤 Export history to CSV
